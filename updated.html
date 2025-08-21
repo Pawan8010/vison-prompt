@@ -653,12 +653,12 @@
         onSnapshot(submissionsColRef, (snapshot) => {
             let submissions = [];
             snapshot.forEach(doc => {
-                submissions.push(doc.data());
+                submissions.push({ id: doc.id, ...doc.data() });
             });
             updateSubmissionsTable(submissions);
-            // This is a placeholder for real image scoring.
-            // A real solution would require a backend model to run image comparison.
-            updateLeaderboard(submissions.sort((a, b) => (a.rank || 9999) - (b.rank || 9999)));
+            // Sort leaderboard by rank, with unranked at the end
+            const rankedSubmissions = submissions.sort((a, b) => (a.rank || 9999) - (b.rank || 9999));
+            updateLeaderboard(rankedSubmissions.slice(0, 5));
         });
 
         // Get target image on load
@@ -834,15 +834,13 @@
             // Get user info from the 'users' collection
             const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, userId);
             const userDocSnap = await getDoc(userDocRef);
-            let userInfo = {};
-            if (userDocSnap.exists()) {
-                userInfo = userDocSnap.data();
-            } else {
+            if (!userDocSnap.exists()) {
                 console.error("User registration data not found!");
                 showMessage("Your registration data was not found. Please register again.");
                 submitPromptBtn.disabled = false;
                 return;
             }
+            const userInfo = userDocSnap.data();
 
             // Store submission in Firestore.
             const submissionDocRef = doc(collection(db, `artifacts/${appId}/public/data/submissions`));
@@ -939,7 +937,7 @@
             rankBtn.onclick = async () => {
                 const rank = prompt("Enter a rank for this submission:");
                 if (rank && !isNaN(parseInt(rank))) {
-                    const submissionDocRef = doc(db, `artifacts/${appId}/public/data/submissions`, submission.submissionId);
+                    const submissionDocRef = doc(db, `artifacts/${appId}/public/data/submissions`, submission.id);
                     await setDoc(submissionDocRef, { rank: parseInt(rank) }, { merge: true });
                     showMessage(`Rank set to ${rank} for ${submission.name}.`);
                 } else if (rank !== null) {
@@ -970,7 +968,7 @@
             
             const scoreSpan = document.createElement('span');
             scoreSpan.classList.add('score');
-            scoreSpan.textContent = ` - Score: ${score}%`;
+            scoreSpan.textContent = ` - Rank: ${submission.rank || 'N/A'}`;
 
             li.appendChild(rankSpan);
             li.appendChild(nameSpan);
